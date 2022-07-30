@@ -48,7 +48,7 @@ impl GameBoard {
 
         for row in 0..3 {
             for col in 0..3 {
-                match self[Vec2D(box_start_cell.0 + row, box_start_cell.1 + col)] {
+                match self[box_start_cell + Vec2D(row, col)] {
                     Cell::Given(x) | Cell::Guess(x) if x == num => return true,
                     _ => {}
                 }

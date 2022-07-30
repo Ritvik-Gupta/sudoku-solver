@@ -1,4 +1,5 @@
 pub mod backtracking_solver;
+pub mod stochastic_search;
 
 use crate::utils::Vec2D;
 
@@ -23,9 +24,9 @@ impl std::fmt::Debug for Cell {
             f,
             "{}",
             match self {
-                Cell::Empty => " - ".to_owned(),
-                Cell::Given(val) => format!("({})", val),
-                Cell::Guess(val) => format!(" {} ", val),
+                Cell::Empty => format!("\x1b[91m{}\x1b[0m", "."),
+                Cell::Given(val) => format!("\x1b[93m{}\x1b[0m", val),
+                Cell::Guess(val) => format!("{}", val),
             }
         )?;
         Ok(())
@@ -54,8 +55,17 @@ impl std::ops::Index<Vec2D> for GameBoard {
 
 impl std::fmt::Debug for GameBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for row in self.0.iter() {
-            for cell in row.iter() {
+        for (row_idx, row) in self.0.iter().enumerate() {
+            if row_idx != 0 && row_idx % 3 == 0 {
+                for _ in 0..11 {
+                    write!(f, "\x1b[90m-\x1b[0m ")?;
+                }
+                write!(f, "\n")?;
+            }
+            for (col_idx, cell) in row.iter().enumerate() {
+                if col_idx != 0 && col_idx % 3 == 0 {
+                    write!(f, "\x1b[90m|\x1b[0m ")?;
+                }
                 write!(f, "{:?} ", cell)?;
             }
             write!(f, "\n")?;
@@ -80,6 +90,18 @@ impl GameBoard {
         gameboard
     }
 
+    fn as_raw(&self) -> [[u8; BOARD_SIZE]; BOARD_SIZE] {
+        let mut board = [[0; BOARD_SIZE]; BOARD_SIZE];
+
+        for i in 0..BOARD_SIZE {
+            for j in 0..BOARD_SIZE {
+                board[i][j] = self[Vec2D(i, j)].value();
+            }
+        }
+
+        board
+    }
+
     pub fn set_cell(&mut self, pos: Vec2D, num: u8) {
         self.0[pos.0][pos.1] = Cell::Given(num);
     }
@@ -87,8 +109,7 @@ impl GameBoard {
 
 #[cfg(test)]
 mod test {
-    use super::{GameBoard, BOARD_SIZE};
-    use crate::utils::Vec2D;
+    use super::GameBoard;
 
     #[test]
     fn has_correct_output() {
@@ -106,25 +127,40 @@ mod test {
 
         gameboard.backtracking_solver();
 
-        let solved_gameboard = GameBoard::new([
-            [3, 1, 6, 5, 7, 8, 4, 9, 2],
-            [5, 2, 9, 1, 3, 4, 7, 6, 8],
-            [4, 8, 7, 6, 2, 9, 5, 3, 1],
-            [2, 6, 3, 4, 1, 5, 9, 8, 7],
-            [9, 7, 4, 8, 6, 3, 1, 2, 5],
-            [8, 5, 1, 7, 9, 2, 6, 4, 3],
-            [1, 3, 8, 9, 4, 7, 2, 5, 6],
-            [6, 9, 2, 3, 5, 1, 8, 7, 4],
-            [7, 4, 5, 2, 8, 6, 3, 1, 9],
-        ]);
+        assert_eq!(
+            gameboard.as_raw(),
+            [
+                [3, 1, 6, 5, 7, 8, 4, 9, 2],
+                [5, 2, 9, 1, 3, 4, 7, 6, 8],
+                [4, 8, 7, 6, 2, 9, 5, 3, 1],
+                [2, 6, 3, 4, 1, 5, 9, 8, 7],
+                [9, 7, 4, 8, 6, 3, 1, 2, 5],
+                [8, 5, 1, 7, 9, 2, 6, 4, 3],
+                [1, 3, 8, 9, 4, 7, 2, 5, 6],
+                [6, 9, 2, 3, 5, 1, 8, 7, 4],
+                [7, 4, 5, 2, 8, 6, 3, 1, 9],
+            ]
+        );
+    }
 
-        for i in 0..BOARD_SIZE {
-            for j in 0..BOARD_SIZE {
-                assert_eq!(
-                    gameboard[Vec2D(i, j)].value(),
-                    solved_gameboard[Vec2D(i, j)].value()
-                )
-            }
-        }
+    #[test]
+    fn invalid_grid_cannot_be_solved() {
+        let board = [
+            [3, 0, 6, 5, 0, 5, 4, 0, 0],
+            [5, 2, 0, 0, 0, 0, 0, 0, 0],
+            [0, 8, 7, 0, 0, 0, 0, 3, 1],
+            [0, 0, 3, 0, 1, 0, 0, 8, 0],
+            [9, 0, 0, 8, 6, 3, 0, 0, 5],
+            [0, 5, 0, 0, 9, 0, 6, 0, 0],
+            [1, 3, 0, 0, 0, 0, 2, 5, 0],
+            [0, 0, 0, 0, 0, 0, 0, 7, 4],
+            [0, 0, 5, 2, 0, 6, 3, 0, 0],
+        ];
+
+        let mut gameboard = GameBoard::new(board.clone());
+
+        gameboard.backtracking_solver();
+
+        assert_eq!(gameboard.as_raw(), board);
     }
 }
