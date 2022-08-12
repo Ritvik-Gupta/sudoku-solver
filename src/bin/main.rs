@@ -11,7 +11,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut gameboard = GameBoard::default();
 
-    gameboard.set_cell(Vec2D(1, 2), 5);
+    gameboard.set_cell(Vec2D::new(1, 2), 5);
 
     stdout.write(b"\x1B[2J\x1B[1;1H")?;
     stdout.write(format!("{:?}", gameboard).as_bytes())?;

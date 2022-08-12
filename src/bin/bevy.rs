@@ -1,17 +1,40 @@
-use bevy::{ecs::schedule::ShouldRun, prelude::*};
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    ecs::schedule::ShouldRun,
+    prelude::*,
+};
 use sudoku_solver::{
     core::{wave_function_collapse::WaveFunction, Cell, GameBoard},
     utils::Vec2D,
 };
 
-static BOARD_ORDER: usize = 3;
+static BOARD_ORDER: usize = 4;
 static BOARD_ORDER_F32: f32 = BOARD_ORDER as f32;
 
 static BOARD_SQ_ORDER: usize = BOARD_ORDER * BOARD_ORDER;
 
-static TILE_SIZE: f32 = 25.0;
+static TILE_SIZE: f32 = 12.0;
 static CELL_SIZE: f32 = TILE_SIZE * BOARD_ORDER_F32;
 static BOX_SIZE: f32 = CELL_SIZE * BOARD_ORDER_F32;
+
+static GIVEN_CELL_COLOR: Color = Color::Hsla {
+    hue: 60.0,
+    saturation: 0.95,
+    lightness: 0.40,
+    alpha: 0.5,
+};
+static EMPTY_CELL_COLOR: Color = Color::Hsla {
+    hue: 120.0,
+    saturation: 0.95,
+    lightness: 0.40,
+    alpha: 0.5,
+};
+static GUESS_CELL_COLOR: Color = Color::Hsla {
+    hue: 165.0,
+    saturation: 0.95,
+    lightness: 0.40,
+    alpha: 0.5,
+};
 
 #[derive(Component, Deref, DerefMut)]
 struct TilePos {
@@ -49,7 +72,11 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
-        .insert_resource(ChosenBoxCell { pos: Vec2D(0, 0) })
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .insert_resource(ChosenBoxCell {
+            pos: Vec2D::new(0, 0),
+        })
         .insert_resource(SudokuState::Building(GameBoard::create_empty(BOARD_ORDER)))
         .add_startup_system(setup)
         .add_system_set(SystemSet::new().label("draw-board").with_system(draw_board))
@@ -85,11 +112,7 @@ fn highlight_cell(
     for (parent, mut sprite, cell_pos) in query_cell.iter_mut() {
         let box_pos = query_box.get(parent.0).unwrap();
 
-        if Vec2D(
-            box_pos.0 * BOARD_ORDER + cell_pos.0,
-            box_pos.1 * BOARD_ORDER + cell_pos.1,
-        ) == chosen_cell.pos
-        {
+        if box_pos.pos * BOARD_ORDER + cell_pos.pos == chosen_cell.pos {
             let hsla = sprite.color.as_hlsa_f32();
             sprite.color = Color::Hsla {
                 hue: hsla[0],
@@ -110,6 +133,10 @@ fn draw_board(
         Query<(&Parent, &mut Text, &TilePos)>,
     )>,
 ) {
+    if !sudoku_state.is_changed() {
+        return;
+    }
+
     match sudoku_state.as_ref() {
         SudokuState::Building(gameboard) => {
             let mut query_cell_text = query_set.p0();
@@ -118,25 +145,17 @@ fn draw_board(
                 let (parent, mut sprite, _) = query_cell.get_mut(parent.0).unwrap();
                 let box_pos = query_box.get(parent.0).unwrap();
 
-                match gameboard[box_pos.pos * BOARD_ORDER + cell_pos.pos] {
-                    Cell::Given(val) => {
-                        sprite.color = Color::Hsla {
-                            hue: 60.0,
-                            saturation: 0.95,
-                            lightness: 0.40,
-                            alpha: 0.5,
-                        };
+                let (color_val, text_val) =
+                    match gameboard[box_pos.pos * BOARD_ORDER + cell_pos.pos] {
+                        Cell::Given(val) => (GIVEN_CELL_COLOR, format!("{}", val)),
+                        _ => (EMPTY_CELL_COLOR, "".to_string()),
+                    };
 
-                        text.sections[0].value = format!("{}", val);
-                    }
-                    _ => {
-                        sprite.color = Color::Hsla {
-                            hue: 120.0,
-                            saturation: 0.95,
-                            lightness: 0.40,
-                            alpha: 0.5,
-                        };
-                    }
+                if sprite.color != color_val {
+                    sprite.color = color_val;
+                }
+                if text.sections[0].value != text_val {
+                    text.sections[0].value = text_val;
                 }
             }
         }
@@ -147,38 +166,18 @@ fn draw_board(
                 let (parent, mut sprite, _) = query_cell.get_mut(parent.0).unwrap();
                 let box_pos = query_box.get(parent.0).unwrap();
 
-                match wave_function.state.gameboard[Vec2D(
-                    box_pos.0 * BOARD_ORDER + cell_pos.0,
-                    box_pos.1 * BOARD_ORDER + cell_pos.1,
-                )] {
-                    Cell::Given(val) => {
-                        sprite.color = Color::Hsla {
-                            hue: 60.0,
-                            saturation: 0.95,
-                            lightness: 0.40,
-                            alpha: 0.5,
-                        };
+                let (color_val, text_val) =
+                    match wave_function.state.gameboard[box_pos.pos * BOARD_ORDER + cell_pos.pos] {
+                        Cell::Given(val) => (GIVEN_CELL_COLOR, format!("{}", val)),
+                        Cell::Guess(val) => (GUESS_CELL_COLOR, format!("{}", val)),
+                        Cell::Empty => (EMPTY_CELL_COLOR, "".to_string()),
+                    };
 
-                        text.sections[0].value = format!("{}", val);
-                    }
-                    Cell::Guess(val) => {
-                        sprite.color = Color::Hsla {
-                            hue: 165.0,
-                            saturation: 0.95,
-                            lightness: 0.40,
-                            alpha: 0.5,
-                        };
-
-                        text.sections[0].value = format!("{}", val);
-                    }
-                    Cell::Empty => {
-                        sprite.color = Color::Hsla {
-                            hue: 120.0,
-                            saturation: 0.95,
-                            lightness: 0.40,
-                            alpha: 0.5,
-                        };
-                    }
+                if sprite.color != color_val {
+                    sprite.color = color_val;
+                }
+                if text.sections[0].value != text_val {
+                    text.sections[0].value = text_val;
                 }
             }
 
@@ -194,9 +193,9 @@ fn draw_board(
                     .get_priority(&(box_pos.pos * BOARD_ORDER + cell_pos.pos))
                 {
                     Some(cell_tile)
-                        if cell_tile.contains(&(tile_pos.0 * BOARD_ORDER + tile_pos.1 + 1)) =>
+                        if cell_tile.contains(&(tile_pos.x() * BOARD_ORDER + tile_pos.y() + 1)) =>
                     {
-                        format!("{}", tile_pos.0 * BOARD_ORDER + tile_pos.1 + 1)
+                        format!("{}", tile_pos.x() * BOARD_ORDER + tile_pos.y() + 1)
                     }
                     _ => "".to_string(),
                 };
@@ -209,7 +208,7 @@ fn keyboard_simulate_wave_function(
     keys: Res<Input<KeyCode>>,
     mut sudoku_state: ResMut<SudokuState>,
 ) {
-    if keys.just_pressed(KeyCode::Space) {
+    if keys.pressed(KeyCode::Space) {
         if let SudokuState::Simulating(wave_function) = sudoku_state.as_mut() {
             wave_function.simulate_generation();
         }
@@ -221,32 +220,37 @@ fn keyboard_chosen_cell_update(
     mut chosen_box_cell: ResMut<ChosenBoxCell>,
 ) {
     if keys.just_pressed(KeyCode::Left) {
-        chosen_box_cell.0 = (chosen_box_cell.0 + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
+        *chosen_box_cell.x_mut() = (chosen_box_cell.x() + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
     }
 
     if keys.just_pressed(KeyCode::Right) {
-        chosen_box_cell.0 = (chosen_box_cell.0 + 1) % BOARD_SQ_ORDER;
+        *chosen_box_cell.x_mut() = (chosen_box_cell.x() + 1) % BOARD_SQ_ORDER;
     }
 
     if keys.just_pressed(KeyCode::Down) {
-        chosen_box_cell.1 = (chosen_box_cell.1 + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
+        *chosen_box_cell.y_mut() = (chosen_box_cell.y() + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
     }
 
     if keys.just_pressed(KeyCode::Up) {
-        chosen_box_cell.1 = (chosen_box_cell.1 + 1) % BOARD_SQ_ORDER;
+        *chosen_box_cell.y_mut() = (chosen_box_cell.y() + 1) % BOARD_SQ_ORDER;
     }
 }
 
 fn keyboard_cell_value_update(
     mut char_evr: EventReader<ReceivedCharacter>,
+    keys: Res<Input<KeyCode>>,
     chosen_box_cell: Res<ChosenBoxCell>,
     mut sudoku_state: ResMut<SudokuState>,
 ) {
     if let SudokuState::Building(gameboard) = sudoku_state.as_mut() {
         if let Some(digit) = char_evr.iter().next().and_then(|ch| ch.char.to_digit(10)) {
-            if (1..=9).contains(&digit) {
-                gameboard[chosen_box_cell.pos] = Cell::Given(digit as usize);
+            let value = gameboard[chosen_box_cell.pos].value() * 10 + digit as usize;
+            if value <= BOARD_SQ_ORDER {
+                gameboard[chosen_box_cell.pos] = Cell::as_given(value);
             }
+        } else if keys.just_pressed(KeyCode::Back) {
+            gameboard[chosen_box_cell.pos] =
+                Cell::as_given(gameboard[chosen_box_cell.pos].value() / 10);
         }
     }
 }
@@ -287,7 +291,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..default()
             })
             .insert(BoxPos {
-                pos: Vec2D(i as usize, j as usize),
+                pos: Vec2D::new(i as usize, j as usize),
             })
             .with_children(|parent| {
                 board_iterations.clone().for_each(|(i, j)| {
@@ -315,7 +319,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             ..default()
                         })
                         .insert(CellPos {
-                            pos: Vec2D(i as usize, j as usize),
+                            pos: Vec2D::new(i as usize, j as usize),
                         })
                         .with_children(|parent| {
                             parent
@@ -339,7 +343,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                     ..default()
                                 })
                                 .insert(CellPos {
-                                    pos: Vec2D(i as usize, j as usize),
+                                    pos: Vec2D::new(i as usize, j as usize),
                                 });
                         })
                         .with_children(|parent| {
@@ -372,7 +376,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                         ..default()
                                     })
                                     .insert(TilePos {
-                                        pos: Vec2D(i as usize, j as usize),
+                                        pos: Vec2D::new(i as usize, j as usize),
                                     });
                             });
                         });

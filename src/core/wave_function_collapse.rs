@@ -44,9 +44,11 @@ impl WaveState {
         let mut non_collapsed_cells = KeyedPriorityQueue::new();
         for i in 0..gameboard.board_size {
             for j in 0..gameboard.board_size {
-                if gameboard[Vec2D(i, j)] == Cell::Empty {
-                    non_collapsed_cells
-                        .push(Vec2D(i, j), CellTile((1..=gameboard.board_size).collect()));
+                if gameboard[Vec2D::new(i, j)] == Cell::Empty {
+                    non_collapsed_cells.push(
+                        Vec2D::new(i, j),
+                        CellTile((1..=gameboard.board_size).collect()),
+                    );
                 }
             }
         }
@@ -58,8 +60,8 @@ impl WaveState {
 
         for i in 0..simulation.gameboard.board_size {
             for j in 0..simulation.gameboard.board_size {
-                if let Cell::Given(given_state) = simulation.gameboard[Vec2D(i, j)] {
-                    simulation.apply_heuristics(Vec2D(i, j), given_state);
+                if let Cell::Given(given_state) = simulation.gameboard[Vec2D::new(i, j)] {
+                    simulation.apply_heuristics(Vec2D::new(i, j), given_state);
                 }
             }
         }
@@ -86,8 +88,8 @@ impl WaveState {
 
     fn apply_heuristics(&mut self, pos: Vec2D, given_tile: usize) {
         for i in 0..self.gameboard.board_size {
-            self.heuristics_on_cell(Vec2D(i, pos.1), given_tile);
-            self.heuristics_on_cell(Vec2D(pos.0, i), given_tile);
+            self.heuristics_on_cell(Vec2D::new(i, pos.y()), given_tile);
+            self.heuristics_on_cell(Vec2D::new(pos.x(), i), given_tile);
         }
 
         self.gameboard
@@ -140,10 +142,6 @@ impl WaveFunction {
                 if min_entropy_tiles.len() > 1 {
                     let mut cloned_state = self.state.clone();
                     cloned_state.apply_heuristics(min_entropy_pos, min_entropy_tiles[0]);
-                    cloned_state
-                        .entropy_queue
-                        .set_priority(&min_entropy_pos, CellTile(min_entropy_tiles[1..].to_vec()))
-                        .unwrap();
                     self.prev_frames.push(cloned_state);
                 }
 

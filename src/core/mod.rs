@@ -24,6 +24,22 @@ impl std::fmt::Debug for Cell {
     }
 }
 
+impl Cell {
+    pub fn as_given(val: usize) -> Self {
+        match val {
+            0 => Self::Empty,
+            _ => Self::Given(val),
+        }
+    }
+
+    pub fn value(&self) -> usize {
+        match self {
+            Self::Empty => 0,
+            Self::Given(val) | Self::Guess(val) => *val,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct GameBoard {
     board: Vec<Vec<Cell>>,
@@ -42,7 +58,7 @@ impl GameBoard {
     }
 
     fn box_position(&self, cell_pos: Vec2D) -> Vec2D {
-        (Vec2D(cell_pos.0, cell_pos.1) / self.box_size) * self.box_size
+        (cell_pos / self.box_size) * self.box_size
     }
 
     fn box_cell_positions(&self, cell_pos: Vec2D) -> impl Iterator<Item = Vec2D> {
@@ -50,7 +66,7 @@ impl GameBoard {
         let box_size = self.box_size;
 
         (0..box_size)
-            .flat_map(move |x| (0..box_size).map(move |y| Vec2D(x, y)))
+            .flat_map(move |x| (0..box_size).map(move |y| Vec2D::new(x, y)))
             .map(move |pos| pos + box_pos)
     }
 }
@@ -59,13 +75,13 @@ impl std::ops::Index<Vec2D> for GameBoard {
     type Output = Cell;
 
     fn index(&self, idx: Vec2D) -> &Self::Output {
-        &self.board[idx.0][idx.1]
+        &self.board[idx.x()][idx.y()]
     }
 }
 
 impl std::ops::IndexMut<Vec2D> for GameBoard {
     fn index_mut(&mut self, idx: Vec2D) -> &mut Self::Output {
-        &mut self.board[idx.0][idx.1]
+        &mut self.board[idx.x()][idx.y()]
     }
 }
 

@@ -49,7 +49,7 @@ impl std::ops::Index<Vec2D> for GameBoard {
     type Output = Cell;
 
     fn index(&self, idx: Vec2D) -> &Self::Output {
-        &self.0[idx.0][idx.1]
+        &self.0[idx.x()][idx.y()]
     }
 }
 
@@ -95,7 +95,7 @@ impl GameBoard {
 
         for i in 0..BOARD_SIZE {
             for j in 0..BOARD_SIZE {
-                board[i][j] = self[Vec2D(i, j)].value();
+                board[i][j] = self[Vec2D::new(i, j)].value();
             }
         }
 
@@ -103,7 +103,7 @@ impl GameBoard {
     }
 
     pub fn set_cell(&mut self, pos: Vec2D, num: u8) {
-        self.0[pos.0][pos.1] = Cell::Given(num);
+        self.0[pos.x()][pos.y()] = Cell::Given(num);
     }
 }
 
