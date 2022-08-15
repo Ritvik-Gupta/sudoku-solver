@@ -7,7 +7,7 @@ use sudoku_solver::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = io::stdout();
 
-    let mut gameboard = GameBoard::create_empty(3);
+    let mut gameboard = GameBoard::<3>::create_empty();
     gameboard[Vec2D::new(0, 0)] = Cell::Given(1);
     gameboard[Vec2D::new(0, 1)] = Cell::Given(2);
     gameboard[Vec2D::new(0, 2)] = Cell::Given(3);

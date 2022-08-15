@@ -154,6 +154,7 @@ public:
 
 GameBoard exploratory_solution;
 bool found_soln;
+double time_to_soln;
 
 class WaveState {
 public:
@@ -281,6 +282,7 @@ public:
                     if (!found_soln) {
                         found_soln = true;
                         exploratory_solution = gameboard;
+                        time_to_soln = omp_get_wtime();
                     }
 #pragma omp cancel taskgroup
                     break;
@@ -325,7 +327,6 @@ public:
     void exploratory_decomposition() {
 #pragma omp parallel
 #pragma omp single
-#pragma omp taskgroup
         exploratory_decomposition_helper();
     }
 
@@ -389,15 +390,14 @@ int main() {
     t1 = omp_get_wtime();
 
     simulation.exploratory_decomposition();
-    if (!found_soln) {
-        cout << "vakvnbk" << endl;
+    if (!found_soln)
         return -1;
-    }
 
     t2 = omp_get_wtime();
 
     exploratory_solution.print_normal();
 
+    cout << "Time to Solution :\t" << time_to_soln - t1 << endl;
     cout << "Time Taken :\t" << t2 - t1 << endl;
 
     return -1;

@@ -34,20 +34,21 @@ impl Ord for CellTile {
 }
 
 #[derive(Clone)]
-pub struct WaveState {
-    pub gameboard: GameBoard,
+pub struct WaveState<const BOX_SIZE: usize> {
+    pub gameboard: GameBoard<BOX_SIZE>,
     pub entropy_queue: KeyedPriorityQueue<Vec2D, CellTile>,
 }
 
-impl WaveState {
-    pub fn build(gameboard: GameBoard) -> Self {
+impl<const BOX_SIZE: usize> WaveState<BOX_SIZE> {
+    pub fn build(gameboard: GameBoard<BOX_SIZE>) -> Self {
         let mut non_collapsed_cells = KeyedPriorityQueue::new();
-        for i in 0..gameboard.board_size {
-            for j in 0..gameboard.board_size {
+
+        for i in 0..gameboard.board_size() {
+            for j in 0..gameboard.board_size() {
                 if gameboard[Vec2D::new(i, j)] == Cell::Empty {
                     non_collapsed_cells.push(
                         Vec2D::new(i, j),
-                        CellTile((1..=gameboard.board_size).collect()),
+                        CellTile((1..=gameboard.board_size()).collect()),
                     );
                 }
             }
@@ -58,8 +59,8 @@ impl WaveState {
             entropy_queue: non_collapsed_cells,
         };
 
-        for i in 0..simulation.gameboard.board_size {
-            for j in 0..simulation.gameboard.board_size {
+        for i in 0..simulation.gameboard.board_size() {
+            for j in 0..simulation.gameboard.board_size() {
                 if let Cell::Given(given_state) = simulation.gameboard[Vec2D::new(i, j)] {
                     simulation.apply_heuristics(Vec2D::new(i, j), given_state);
                 }
@@ -87,7 +88,7 @@ impl WaveState {
     }
 
     fn apply_heuristics(&mut self, pos: Vec2D, given_tile: usize) {
-        for i in 0..self.gameboard.board_size {
+        for i in 0..self.gameboard.board_size() {
             self.heuristics_on_cell(Vec2D::new(i, pos.y()), given_tile);
             self.heuristics_on_cell(Vec2D::new(pos.x(), i), given_tile);
         }
@@ -116,13 +117,13 @@ impl WaveState {
     // }
 }
 
-pub struct WaveFunction {
-    prev_frames: Vec<WaveState>,
-    pub state: WaveState,
+pub struct WaveFunction<const BOX_SIZE: usize> {
+    prev_frames: Vec<WaveState<BOX_SIZE>>,
+    pub state: WaveState<BOX_SIZE>,
 }
 
-impl WaveFunction {
-    pub fn build(gameboard: GameBoard) -> Self {
+impl<const BOX_SIZE: usize> WaveFunction<BOX_SIZE> {
+    pub fn build(gameboard: GameBoard<BOX_SIZE>) -> Self {
         Self {
             prev_frames: Vec::new(),
             state: WaveState::build(gameboard),

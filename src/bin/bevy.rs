@@ -8,14 +8,14 @@ use sudoku_solver::{
     utils::Vec2D,
 };
 
-static BOARD_ORDER: usize = 4;
-static BOARD_ORDER_F32: f32 = BOARD_ORDER as f32;
+const BOARD_ORDER: usize = 3;
+const BOARD_ORDER_F32: f32 = BOARD_ORDER as f32;
 
-static BOARD_SQ_ORDER: usize = BOARD_ORDER * BOARD_ORDER;
+const BOARD_SQ_ORDER: usize = BOARD_ORDER * BOARD_ORDER;
 
-static TILE_SIZE: f32 = 12.0;
-static CELL_SIZE: f32 = TILE_SIZE * BOARD_ORDER_F32;
-static BOX_SIZE: f32 = CELL_SIZE * BOARD_ORDER_F32;
+const TILE_SIZE: f32 = 12.0;
+const CELL_SIZE: f32 = TILE_SIZE * BOARD_ORDER_F32;
+const BOX_SIZE: f32 = CELL_SIZE * BOARD_ORDER_F32;
 
 static GIVEN_CELL_COLOR: Color = Color::Hsla {
     hue: 60.0,
@@ -57,8 +57,8 @@ struct ChosenBoxCell {
 }
 
 enum SudokuState {
-    Building(GameBoard),
-    Simulating(WaveFunction),
+    Building(GameBoard<BOARD_ORDER>),
+    Simulating(WaveFunction<BOARD_ORDER>),
 }
 
 fn main() {
@@ -72,12 +72,12 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        // .add_plugin(LogDiagnosticsPlugin::default())
+        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(ChosenBoxCell {
             pos: Vec2D::new(0, 0),
         })
-        .insert_resource(SudokuState::Building(GameBoard::create_empty(BOARD_ORDER)))
+        .insert_resource(SudokuState::Building(GameBoard::create_empty()))
         .add_startup_system(setup)
         .add_system_set(SystemSet::new().label("draw-board").with_system(draw_board))
         .add_system_set(
