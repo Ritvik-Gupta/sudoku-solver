@@ -97,24 +97,6 @@ impl<const BOX_SIZE: usize> WaveState<BOX_SIZE> {
             .box_cell_positions(pos)
             .for_each(|pos| self.heuristics_on_cell(pos, given_tile));
     }
-
-    // fn recur(self) -> Option<Self> {
-    //     loop {
-    //         match self.entropy_queue.peek() {
-    //             Some((_, min_entropy_tiles)) if min_entropy_tiles.is_empty() => return None,
-    //             Some((&min_entropy_pos, min_entropy_tiles)) if min_entropy_tiles.len() > 1 => {
-    //                 for &tile in min_entropy_tiles.0.iter() {
-    //                     let mut cloned_state = self.clone();
-    //                     cloned_state.apply_heuristics(min_entropy_pos, tile);
-    //                 }
-    //                 break;
-    //             }
-    //             Some((&min_entropy_pos, min_entropy_tiles)) => {}
-    //             _ => {}
-    //         }
-    //     }
-    //     Some(self)
-    // }
 }
 
 pub struct WaveFunction<const BOX_SIZE: usize> {
@@ -142,7 +124,7 @@ impl<const BOX_SIZE: usize> WaveFunction<BOX_SIZE> {
             Some((&min_entropy_pos, min_entropy_tiles)) => {
                 if min_entropy_tiles.len() > 1 {
                     let mut cloned_state = self.state.clone();
-                    cloned_state.apply_heuristics(min_entropy_pos, min_entropy_tiles[0]);
+                    cloned_state.heuristics_on_cell(min_entropy_pos, min_entropy_tiles[0]);
                     self.prev_frames.push(cloned_state);
                 }
 
@@ -166,6 +148,10 @@ impl<const BOX_SIZE: usize> WaveFunction<BOX_SIZE> {
             }
             _ => false,
         }
+    }
+
+    pub fn force_backtrack_prev_frame(&mut self) {
+        self.state = self.prev_frames.pop().unwrap();
     }
 
     pub fn print(&self, stdout: &mut std::io::Stdout) -> Result<(), Box<dyn std::error::Error>> {

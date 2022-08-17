@@ -13,7 +13,7 @@ const BOARD_ORDER_F32: f32 = BOARD_ORDER as f32;
 
 const BOARD_SQ_ORDER: usize = BOARD_ORDER * BOARD_ORDER;
 
-const TILE_SIZE: f32 = 12.0;
+const TILE_SIZE: f32 = 20.0;
 const CELL_SIZE: f32 = TILE_SIZE * BOARD_ORDER_F32;
 const BOX_SIZE: f32 = CELL_SIZE * BOARD_ORDER_F32;
 
@@ -51,14 +51,17 @@ struct BoxPos {
     pos: Vec2D,
 }
 
-#[derive(Deref, DerefMut)]
-struct ChosenBoxCell {
-    pos: Vec2D,
+struct BuildingState {
+    gameboard: GameBoard<BOARD_ORDER>,
+    chosen_box_cell: Vec2D,
 }
 
-enum SudokuState {
-    Building(GameBoard<BOARD_ORDER>),
-    Simulating(WaveFunction<BOARD_ORDER>),
+struct SimulatingState {
+    wave_function: WaveFunction<BOARD_ORDER>,
+}
+
+struct InputTimerState {
+    timer: Timer,
 }
 
 fn main() {
@@ -74,29 +77,32 @@ fn main() {
         .add_plugins(DefaultPlugins)
         // .add_plugin(LogDiagnosticsPlugin::default())
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .insert_resource(ChosenBoxCell {
-            pos: Vec2D::new(0, 0),
+        .insert_resource(BuildingState {
+            gameboard: GameBoard::create_empty(),
+            chosen_box_cell: Vec2D::new(0, 0),
         })
-        .insert_resource(SudokuState::Building(GameBoard::create_empty()))
         .add_startup_system(setup)
         .add_system_set(SystemSet::new().label("draw-board").with_system(draw_board))
         .add_system_set(
             SystemSet::new()
                 .after("draw-board")
-                .with_run_criteria(|sudoku: Res<SudokuState>| match sudoku.as_ref() {
-                    SudokuState::Building(_) => ShouldRun::Yes,
-                    _ => ShouldRun::No,
+                .with_run_criteria(|sudoku_building: Option<Res<BuildingState>>| {
+                    match sudoku_building.is_some() {
+                        true => ShouldRun::Yes,
+                        _ => ShouldRun::No,
+                    }
                 })
                 .with_system(keyboard_chosen_cell_update)
                 .with_system(keyboard_cell_value_update)
-                .with_system(keyboard_sudoku_state_update)
-                .with_system(highlight_cell),
+                .with_system(keyboard_sudoku_state_update),
         )
         .add_system_set(
             SystemSet::new()
-                .with_run_criteria(|sudoku: Res<SudokuState>| match sudoku.as_ref() {
-                    SudokuState::Simulating(_) => ShouldRun::Yes,
-                    _ => ShouldRun::No,
+                .with_run_criteria(|sudoku_simulating: Option<Res<SimulatingState>>| {
+                    match sudoku_simulating.is_some() {
+                        true => ShouldRun::Yes,
+                        _ => ShouldRun::No,
+                    }
                 })
                 .after("draw-board")
                 .with_system(keyboard_simulate_wave_function),
@@ -104,28 +110,9 @@ fn main() {
         .run();
 }
 
-fn highlight_cell(
-    chosen_cell: Res<ChosenBoxCell>,
-    query_box: Query<&BoxPos>,
-    mut query_cell: Query<(&Parent, &mut Sprite, &CellPos)>,
-) {
-    for (parent, mut sprite, cell_pos) in query_cell.iter_mut() {
-        let box_pos = query_box.get(parent.0).unwrap();
-
-        if box_pos.pos * BOARD_ORDER + cell_pos.pos == chosen_cell.pos {
-            let hsla = sprite.color.as_hlsa_f32();
-            sprite.color = Color::Hsla {
-                hue: hsla[0],
-                saturation: hsla[1],
-                lightness: hsla[2],
-                alpha: hsla[3] - 0.2,
-            };
-        }
-    }
-}
-
 fn draw_board(
-    sudoku_state: Res<SudokuState>,
+    sudoku_building_state: Option<Res<BuildingState>>,
+    sudoku_simulating_state: Option<Res<SimulatingState>>,
     query_box: Query<&BoxPos>,
     mut query_cell: Query<(&Parent, &mut Sprite, &CellPos)>,
     mut query_set: ParamSet<(
@@ -133,133 +120,163 @@ fn draw_board(
         Query<(&Parent, &mut Text, &TilePos)>,
     )>,
 ) {
-    if !sudoku_state.is_changed() {
-        return;
-    }
-
-    match sudoku_state.as_ref() {
-        SudokuState::Building(gameboard) => {
-            let mut query_cell_text = query_set.p0();
-
-            for (parent, mut text, cell_pos) in query_cell_text.iter_mut() {
-                let (parent, mut sprite, _) = query_cell.get_mut(parent.0).unwrap();
-                let box_pos = query_box.get(parent.0).unwrap();
-
-                let (color_val, text_val) =
-                    match gameboard[box_pos.pos * BOARD_ORDER + cell_pos.pos] {
-                        Cell::Given(val) => (GIVEN_CELL_COLOR, format!("{}", val)),
-                        _ => (EMPTY_CELL_COLOR, "".to_string()),
-                    };
-
-                if sprite.color != color_val {
-                    sprite.color = color_val;
-                }
-                if text.sections[0].value != text_val {
-                    text.sections[0].value = text_val;
-                }
-            }
+    if let Some(sudoku_state) = sudoku_building_state {
+        if !sudoku_state.is_changed() {
+            return;
         }
-        SudokuState::Simulating(wave_function) => {
-            let mut query_cell_text = query_set.p0();
 
-            for (parent, mut text, cell_pos) in query_cell_text.iter_mut() {
-                let (parent, mut sprite, _) = query_cell.get_mut(parent.0).unwrap();
-                let box_pos = query_box.get(parent.0).unwrap();
+        let gameboard = &sudoku_state.gameboard;
+        let mut query_cell_text = query_set.p0();
 
-                let (color_val, text_val) =
-                    match wave_function.state.gameboard[box_pos.pos * BOARD_ORDER + cell_pos.pos] {
-                        Cell::Given(val) => (GIVEN_CELL_COLOR, format!("{}", val)),
-                        Cell::Guess(val) => (GUESS_CELL_COLOR, format!("{}", val)),
-                        Cell::Empty => (EMPTY_CELL_COLOR, "".to_string()),
-                    };
+        for (parent, mut text, cell_pos) in query_cell_text.iter_mut() {
+            let (parent, mut sprite, _) = query_cell.get_mut(parent.0).unwrap();
+            let box_pos = query_box.get(parent.0).unwrap();
+            let pos = box_pos.pos * BOARD_ORDER + cell_pos.pos;
 
-                if sprite.color != color_val {
-                    sprite.color = color_val;
-                }
-                if text.sections[0].value != text_val {
-                    text.sections[0].value = text_val;
-                }
-            }
+            let (color_val, text_val) = match gameboard[pos] {
+                Cell::Given(val) => (GIVEN_CELL_COLOR, format!("{}", val)),
+                _ => (EMPTY_CELL_COLOR, "".to_string()),
+            };
 
-            let mut query_tile_text = query_set.p1();
+            sprite.color = color_val;
+            text.sections[0].value = text_val;
 
-            for (parent, mut text, tile_pos) in query_tile_text.iter_mut() {
-                let (parent, _, cell_pos) = query_cell.get_mut(parent.0).unwrap();
-                let box_pos = query_box.get(parent.0).unwrap();
-
-                text.sections[0].value = match wave_function
-                    .state
-                    .entropy_queue
-                    .get_priority(&(box_pos.pos * BOARD_ORDER + cell_pos.pos))
-                {
-                    Some(cell_tile)
-                        if cell_tile.contains(&(tile_pos.x() * BOARD_ORDER + tile_pos.y() + 1)) =>
-                    {
-                        format!("{}", tile_pos.x() * BOARD_ORDER + tile_pos.y() + 1)
-                    }
-                    _ => "".to_string(),
+            if pos == sudoku_state.chosen_box_cell {
+                let hsla = sprite.color.as_hlsa_f32();
+                sprite.color = Color::Hsla {
+                    hue: hsla[0],
+                    saturation: hsla[1],
+                    lightness: hsla[2],
+                    alpha: hsla[3] - 0.2,
                 };
             }
         }
+    } else if let Some(sudoku_state) = sudoku_simulating_state {
+        if !sudoku_state.is_changed() {
+            return;
+        }
+
+        let wave_function = &sudoku_state.wave_function;
+        let mut query_cell_text = query_set.p0();
+
+        for (parent, mut text, cell_pos) in query_cell_text.iter_mut() {
+            let (parent, mut sprite, _) = query_cell.get_mut(parent.0).unwrap();
+            let box_pos = query_box.get(parent.0).unwrap();
+            let pos = box_pos.pos * BOARD_ORDER + cell_pos.pos;
+
+            let (color_val, text_val) = match wave_function.state.gameboard[pos] {
+                Cell::Given(val) => (GIVEN_CELL_COLOR, format!("{}", val)),
+                Cell::Guess(val) => (GUESS_CELL_COLOR, format!("{}", val)),
+                Cell::Empty => (EMPTY_CELL_COLOR, "".to_string()),
+            };
+
+            sprite.color = color_val;
+            text.sections[0].value = text_val;
+
+            if let Some((&min_entropy_pos, _)) = wave_function.state.entropy_queue.peek() {
+                if pos == min_entropy_pos {
+                    let hsla = sprite.color.as_hlsa_f32();
+                    sprite.color = Color::Hsla {
+                        hue: hsla[0],
+                        saturation: hsla[1],
+                        lightness: hsla[2],
+                        alpha: hsla[3] - 0.2,
+                    };
+                }
+            }
+        }
+
+        let mut query_tile_text = query_set.p1();
+
+        for (parent, mut text, tile_pos) in query_tile_text.iter_mut() {
+            let (parent, _, cell_pos) = query_cell.get_mut(parent.0).unwrap();
+            let box_pos = query_box.get(parent.0).unwrap();
+            let pos = box_pos.pos * BOARD_ORDER + cell_pos.pos;
+
+            text.sections[0].value = match wave_function.state.entropy_queue.get_priority(&pos) {
+                Some(cell_tile)
+                    if cell_tile.contains(&(tile_pos.x() * BOARD_ORDER + tile_pos.y() + 1)) =>
+                {
+                    format!("{}", tile_pos.x() * BOARD_ORDER + tile_pos.y() + 1)
+                }
+                _ => "".to_string(),
+            };
+        }
+    } else {
+        unreachable!()
     }
 }
 
 fn keyboard_simulate_wave_function(
     keys: Res<Input<KeyCode>>,
-    mut sudoku_state: ResMut<SudokuState>,
+    mut sudoku_state: ResMut<SimulatingState>,
+    mut input_timer: ResMut<InputTimerState>,
+    time: Res<Time>,
 ) {
-    if keys.pressed(KeyCode::Space) {
-        if let SudokuState::Simulating(wave_function) = sudoku_state.as_mut() {
-            wave_function.simulate_generation();
+    input_timer.timer.tick(time.delta());
+
+    if input_timer.timer.finished() && keys.any_pressed([KeyCode::Space, KeyCode::Back]) {
+        let wave_function = &mut sudoku_state.wave_function;
+
+        if keys.pressed(KeyCode::Space) {
+            if !wave_function.simulate_generation() {
+                wave_function.backtrack_prev_frame();
+            }
+        } else if keys.pressed(KeyCode::Back) {
+            wave_function.force_backtrack_prev_frame();
         }
     }
 }
 
-fn keyboard_chosen_cell_update(
-    keys: Res<Input<KeyCode>>,
-    mut chosen_box_cell: ResMut<ChosenBoxCell>,
-) {
-    if keys.just_pressed(KeyCode::Left) {
-        *chosen_box_cell.x_mut() = (chosen_box_cell.x() + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
-    }
+fn keyboard_chosen_cell_update(keys: Res<Input<KeyCode>>, mut sudoku_state: ResMut<BuildingState>) {
+    if keys.any_just_pressed([KeyCode::Left, KeyCode::Right, KeyCode::Down, KeyCode::Up]) {
+        let chosen_box_cell = &mut sudoku_state.chosen_box_cell;
 
-    if keys.just_pressed(KeyCode::Right) {
-        *chosen_box_cell.x_mut() = (chosen_box_cell.x() + 1) % BOARD_SQ_ORDER;
-    }
-
-    if keys.just_pressed(KeyCode::Down) {
-        *chosen_box_cell.y_mut() = (chosen_box_cell.y() + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
-    }
-
-    if keys.just_pressed(KeyCode::Up) {
-        *chosen_box_cell.y_mut() = (chosen_box_cell.y() + 1) % BOARD_SQ_ORDER;
+        if keys.just_pressed(KeyCode::Left) {
+            *chosen_box_cell.x_mut() = (chosen_box_cell.x() + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
+        } else if keys.just_pressed(KeyCode::Right) {
+            *chosen_box_cell.x_mut() = (chosen_box_cell.x() + 1) % BOARD_SQ_ORDER;
+        } else if keys.just_pressed(KeyCode::Down) {
+            *chosen_box_cell.y_mut() = (chosen_box_cell.y() + BOARD_SQ_ORDER - 1) % BOARD_SQ_ORDER;
+        } else if keys.just_pressed(KeyCode::Up) {
+            *chosen_box_cell.y_mut() = (chosen_box_cell.y() + 1) % BOARD_SQ_ORDER;
+        }
     }
 }
 
 fn keyboard_cell_value_update(
     mut char_evr: EventReader<ReceivedCharacter>,
     keys: Res<Input<KeyCode>>,
-    chosen_box_cell: Res<ChosenBoxCell>,
-    mut sudoku_state: ResMut<SudokuState>,
+    mut sudoku_state: ResMut<BuildingState>,
 ) {
-    if let SudokuState::Building(gameboard) = sudoku_state.as_mut() {
-        if let Some(digit) = char_evr.iter().next().and_then(|ch| ch.char.to_digit(10)) {
-            let value = gameboard[chosen_box_cell.pos].value() * 10 + digit as usize;
-            if value <= BOARD_SQ_ORDER {
-                gameboard[chosen_box_cell.pos] = Cell::as_given(value);
-            }
-        } else if keys.just_pressed(KeyCode::Back) {
-            gameboard[chosen_box_cell.pos] =
-                Cell::as_given(gameboard[chosen_box_cell.pos].value() / 10);
+    let chosen_box_cell = sudoku_state.chosen_box_cell;
+
+    if let Some(digit) = char_evr.iter().next().and_then(|ch| ch.char.to_digit(10)) {
+        let value = sudoku_state.gameboard[chosen_box_cell].value() * 10 + digit as usize;
+        if value <= BOARD_SQ_ORDER {
+            sudoku_state.gameboard[chosen_box_cell] = Cell::as_given(value);
         }
+    } else if keys.just_pressed(KeyCode::Back) {
+        sudoku_state.gameboard[chosen_box_cell] =
+            Cell::as_given(sudoku_state.gameboard[chosen_box_cell].value() / 10);
     }
 }
 
-fn keyboard_sudoku_state_update(keys: Res<Input<KeyCode>>, mut sudoku_state: ResMut<SudokuState>) {
+fn keyboard_sudoku_state_update(
+    mut commands: Commands,
+    keys: Res<Input<KeyCode>>,
+    sudoku_state: Res<BuildingState>,
+) {
     if keys.just_pressed(KeyCode::Numlock) {
-        if let SudokuState::Building(gameboard) = sudoku_state.as_mut() {
-            *sudoku_state = SudokuState::Simulating(WaveFunction::build(gameboard.clone()));
-        }
+        let gameboard = sudoku_state.gameboard.clone();
+        commands.remove_resource::<BuildingState>();
+
+        commands.insert_resource(SimulatingState {
+            wave_function: WaveFunction::build(gameboard),
+        });
+        commands.insert_resource(InputTimerState {
+            timer: Timer::from_seconds(0.15, true),
+        });
     }
 }
 
