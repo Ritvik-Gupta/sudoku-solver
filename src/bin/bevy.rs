@@ -8,12 +8,12 @@ use sudoku_solver::{
     utils::Vec2D,
 };
 
-const BOARD_ORDER: usize = 3;
+const BOARD_ORDER: usize = 2;
 const BOARD_ORDER_F32: f32 = BOARD_ORDER as f32;
 
 const BOARD_SQ_ORDER: usize = BOARD_ORDER * BOARD_ORDER;
 
-const TILE_SIZE: f32 = 20.0;
+const TILE_SIZE: f32 = 25.0;
 const CELL_SIZE: f32 = TILE_SIZE * BOARD_ORDER_F32;
 const BOX_SIZE: f32 = CELL_SIZE * BOARD_ORDER_F32;
 
@@ -65,49 +65,52 @@ struct InputTimerState {
 }
 
 fn main() {
-    App::new()
-        .insert_resource(WindowDescriptor {
-            title: "Sudoku Solver".to_string(),
-            width: BOX_SIZE * BOARD_ORDER_F32,
-            height: BOX_SIZE * BOARD_ORDER_F32,
-            resizable: false,
-            transparent: true,
-            ..default()
-        })
-        .add_plugins(DefaultPlugins)
-        // .add_plugin(LogDiagnosticsPlugin::default())
-        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .insert_resource(BuildingState {
-            gameboard: GameBoard::create_empty(),
-            chosen_box_cell: Vec2D::new(0, 0),
-        })
-        .add_startup_system(setup)
-        .add_system_set(SystemSet::new().label("draw-board").with_system(draw_board))
-        .add_system_set(
-            SystemSet::new()
-                .after("draw-board")
-                .with_run_criteria(|sudoku_building: Option<Res<BuildingState>>| {
-                    match sudoku_building.is_some() {
-                        true => ShouldRun::Yes,
-                        _ => ShouldRun::No,
-                    }
-                })
-                .with_system(keyboard_chosen_cell_update)
-                .with_system(keyboard_cell_value_update)
-                .with_system(keyboard_sudoku_state_update),
-        )
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(|sudoku_simulating: Option<Res<SimulatingState>>| {
-                    match sudoku_simulating.is_some() {
-                        true => ShouldRun::Yes,
-                        _ => ShouldRun::No,
-                    }
-                })
-                .after("draw-board")
-                .with_system(keyboard_simulate_wave_function),
-        )
-        .run();
+    let mut app = App::new();
+
+    app.insert_resource(WindowDescriptor {
+        title: "Sudoku Solver".to_string(),
+        width: BOX_SIZE * BOARD_ORDER_F32,
+        height: BOX_SIZE * BOARD_ORDER_F32,
+        resizable: false,
+        transparent: true,
+        ..default()
+    })
+    .add_plugins(DefaultPlugins);
+
+    // app.add_plugin(LogDiagnosticsPlugin::default()).add_plugin(FrameTimeDiagnosticsPlugin::default());
+
+    app.insert_resource(BuildingState {
+        gameboard: GameBoard::create_empty(),
+        chosen_box_cell: Vec2D::new(0, 0),
+    })
+    .add_startup_system(setup)
+    .add_system_set(SystemSet::new().label("draw-board").with_system(draw_board))
+    .add_system_set(
+        SystemSet::new()
+            .after("draw-board")
+            .with_run_criteria(
+                |sudoku_building: Option<Res<BuildingState>>| match sudoku_building.is_some() {
+                    true => ShouldRun::Yes,
+                    _ => ShouldRun::No,
+                },
+            )
+            .with_system(keyboard_chosen_cell_update)
+            .with_system(keyboard_cell_value_update)
+            .with_system(keyboard_sudoku_state_update),
+    )
+    .add_system_set(
+        SystemSet::new()
+            .with_run_criteria(|sudoku_simulating: Option<Res<SimulatingState>>| {
+                match sudoku_simulating.is_some() {
+                    true => ShouldRun::Yes,
+                    _ => ShouldRun::No,
+                }
+            })
+            .after("draw-board")
+            .with_system(keyboard_simulate_wave_function),
+    );
+
+    app.run();
 }
 
 fn draw_board(

@@ -123,7 +123,7 @@ public:
 };
 
 class CellTile {
-    bitset<BOARD_SIZE> tiles;
+    bitset<BOARD_SIZE + 1> tiles;
 
 public:
     void flip() {
@@ -135,7 +135,7 @@ public:
     }
 
     int count() {
-        return tiles.count();
+        return tiles.count() - tiles.test(0);
     }
 
     bool has(int tile) {
@@ -143,7 +143,7 @@ public:
     }
 
     int first_set_tile() {
-        for (int k = 0; k < BOARD_SIZE; ++k) {
+        for (int k = 1; k <= BOARD_SIZE; ++k) {
             if (has(k))
                 return k;
         }
@@ -244,7 +244,7 @@ public:
 
         CellTile* tiles = &entropy_board[least_cell->x][least_cell->y];
 
-        for (int k = 0; k < BOARD_SIZE; ++k) {
+        for (int k = 1; k <= BOARD_SIZE; ++k) {
             if (tiles->has(k)) {
                 WaveState cloned_sim = *this;
 
@@ -310,7 +310,7 @@ public:
             CellTile* tiles = &entropy_board[least_cell->x][least_cell->y];
 
 #pragma omp taskgroup
-            for (int k = 0; k < BOARD_SIZE; ++k) {
+            for (int k = 1; k <= BOARD_SIZE; ++k) {
                 if (tiles->has(k)) {
                     WaveState cloned_sim = *this;
 
@@ -336,7 +336,7 @@ public:
 
         for (int i = 0; i < BOARD_SIZE; ++i) {
             for (int j = 0; j < BOARD_SIZE; ++j) {
-                for (int k = 0; k < BOARD_SIZE; ++k) {
+                for (int k = 1; k <= BOARD_SIZE; ++k) {
                     if (entropy_board[i][j].has(k))
                         cout << k << ",";
                     else
@@ -352,7 +352,7 @@ public:
 
 int main() {
     GameBoard gameboard;
-    gameboard.board[0][0] = Cell::given(0);
+    gameboard.board[0][0] = Cell::given(9);
     gameboard.board[0][1] = Cell::given(1);
     gameboard.board[0][2] = Cell::given(2);
     gameboard.board[1][0] = Cell::given(3);
