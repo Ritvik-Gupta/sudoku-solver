@@ -8,12 +8,12 @@ use sudoku_solver::{
     utils::Vec2D,
 };
 
-const BOARD_ORDER: usize = 2;
+const BOARD_ORDER: usize = 4;
 const BOARD_ORDER_F32: f32 = BOARD_ORDER as f32;
 
 const BOARD_SQ_ORDER: usize = BOARD_ORDER * BOARD_ORDER;
 
-const TILE_SIZE: f32 = 25.0;
+const TILE_SIZE: f32 = 10.0;
 const CELL_SIZE: f32 = TILE_SIZE * BOARD_ORDER_F32;
 const BOX_SIZE: f32 = CELL_SIZE * BOARD_ORDER_F32;
 
