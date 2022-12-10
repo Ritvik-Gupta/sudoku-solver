@@ -270,7 +270,7 @@ fn keyboard_sudoku_state_update(
     keys: Res<Input<KeyCode>>,
     sudoku_state: Res<BuildingState>,
 ) {
-    if keys.just_pressed(KeyCode::Numlock) {
+    if keys.just_pressed(KeyCode::Return) {
         let gameboard = sudoku_state.gameboard.clone();
         commands.remove_resource::<BuildingState>();
 
